@@ -1,0 +1,5 @@
+streamlit
+python-docx
+PyPDF2
+openai>=1.30.0
+jsonschema
