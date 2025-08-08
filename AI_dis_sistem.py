@@ -8,8 +8,10 @@ import streamlit as st
 openai_key = st.sidebar.text_input(
     "OpenAI API Key",
     type="password",
-    value=os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
+    value=os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", "")),
+    key="openai_api_key_input"
 )
+
 
 
 # Optional deps (add to requirements.txt):
@@ -140,7 +142,12 @@ USER_TEMPLATE = """
 # Sidebar settings
 # ------------------------------
 st.sidebar.header("Ayarlar")
-openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
+openai_key = st.sidebar.text_input(
+    "OpenAI API Key",
+    type="password",
+    value=os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", "")),
+    key="openai_api_key_sidebar"
+)
 model = st.sidebar.text_input("Model", value="gpt-4o-mini")
 language = st.sidebar.selectbox("Dil", ["Türkçe", "English"], index=0)
 max_actions = st.sidebar.slider("Mikro eylem sayısı", 3, 10, 5)
@@ -152,7 +159,6 @@ if openai_key and OpenAI:
         client = OpenAI(api_key=openai_key)
     except Exception as e:
         st.sidebar.error(f"OpenAI istemcisi başlatılamadı: {e}")
-
 # ------------------------------
 # Inputs
 # ------------------------------
