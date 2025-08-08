@@ -77,7 +77,7 @@ def read_file(file) -> str:
     except Exception:
         return ""
 
-ANALYSIS_SCHEMA: Dict[str, Any] = {
+ANALYSIS_SCHEMA = {
     "type": "object",
     "properties": {
         "meta": {
@@ -89,15 +89,12 @@ ANALYSIS_SCHEMA: Dict[str, Any] = {
             },
             "required": ["education_title", "num_answers", "language"],
         },
-        "themes": {"type": "array", "items": {"type": "string"}},
-        "strengths": {"type": "array", "items": {"type": "string"}},
-        "growth_areas": {"type": "array", "items": {"type": "string"}},
-        "micro_actions": {"type": "array", "items": {"type": "string"}},
         "ga_style_narrative": {"type": "string"},
         "safety_notes": {"type": "string"},
     },
-    "required": ["meta", "themes", "strengths", "growth_areas", "micro_actions", "ga_style_narrative"],
+    "required": ["meta", "ga_style_narrative"],
 }
+
 
 SYSTEM_PROMPT = """
 Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş Dış Sistem analiz yapay zekâsısın.
