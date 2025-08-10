@@ -175,15 +175,26 @@ def generate_analysis(client, model: str, system_prompt: str, user_prompt: str, 
 # ------------------------------
 # Analiz Üret
 # ------------------------------
+# ------------------------------
 if st.button("🧠 Analizi Üret", type="primary"):
+    TEST_MODE = True  # Test modu açık/kapalı
+
     if not client:
         st.error("OpenAI API anahtarı gerekli")
-    elif not (edu_text and tech_text and questions and any(a.get('answer') for a in answers)):
-        st.error("Tüm gerekli dosyalar yüklenmeli ve en az bir cevap girilmeli.")
+
+    elif not (
+        any(a.get('answer') for a in answers) and
+        (TEST_MODE or (edu_text and tech_text and questions))
+    ):
+        if TEST_MODE:
+            st.warning("⚠ Test modu aktif: Sadece cevaplar.json yüklendi.")
+        else:
+            st.error("Tüm gerekli dosyalar yüklenmeli ve en az bir cevap girilmeli.")
+
     else:
         with st.spinner("Analiz hazırlanıyor…"):
-            edu_summary = summarize_text(client, model, edu_text, "Eğitim Özeti")
-            ty_summary = summarize_text(client, model, tech_text, "Teknik & Yöntemler Özeti")
+            edu_summary = summarize_text(client, model, edu_text, "Eğitim Özeti") if edu_text else ""
+            ty_summary = summarize_text(client, model, tech_text, "Teknik & Yöntemler Özeti") if tech_text else ""
 
             user_prompt = USER_TEMPLATE.format(
                 education_summary=edu_summary,
@@ -203,3 +214,4 @@ if st.session_state.get("analysis_text"):
     st.subheader("📎 Analiz Sonucu")
     st.text_area("Analiz Metni", value=st.session_state["analysis_text"], height=500)
     st.download_button("📥 analysis.txt", data=st.session_state["analysis_text"], file_name="analysis.txt", mime="text/plain")
+
