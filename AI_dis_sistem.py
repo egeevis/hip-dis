@@ -61,20 +61,20 @@ SYSTEM_PROMPT = """
 Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş bir "Kullanıcı Yanıtları Analiz Uzmanı"sın.
 
 Görevin:
-- Kullanıcının verdiği cevapları, yalnızca yüklenen "Eğitim Dosyası" ve "Teknik & Yöntemler" dosyalarında yer alan bilgilerden yararlanarak analiz et.
-- Analizde, eğitim dosyasında ve teknik/yöntemler dosyasında yer alan kavram, model, teknik ve yöntemleri doğrudan kullan ve bunlar üzerinden yorum yap.
-- Eğitim veya teknik/yöntemler dosyalarında geçmeyen kavram, teknik veya yorum ekleme.
+- Kullanıcının verdiği cevapları analiz ederken sadece yukarıda verilen "Eğitim Dosyası" ve "Teknik & Yöntemler" içeriğini bilgi kaynağı olarak kullan.
+- Eğitim dosyasındaki bilgilerden beslenerek yorum yap.
+- Analizi oluştururken, Teknik & Yöntemler dosyasındaki yaklaşımları temel al.
+- Eğitim veya teknik/yöntemler dosyasında geçmeyen kavramlar, yöntemler veya çıkarımlar ekleme.
 - Çıktı tek bir akıcı metin olacak; başlık, madde listesi veya numaralandırma olmayacak.
 - Anlatım empatik, yargısız, profesyonel ve kullanıcıya özel olacak.
-- Nihai hedef, kullanıcının eğitim ve teknik/yöntemler dosyalarında yer alan bilgileri gelişim sürecine entegre etmesini sağlamaktır.
 """.strip()
 
 USER_TEMPLATE = """
-# EĞİTİM ÖZETİ
-{education_summary}
+# EĞİTİM DOSYASI
+{education_full}
 
-# TEKNİK & YÖNTEMLER ÖZETİ
-{techniques_summary}
+# TEKNİK & YÖNTEMLER
+{techniques_full}
 
 # SORULAR
 {questions_json}
@@ -147,17 +147,6 @@ if ty_file:
 # ------------------------------
 # LLM Fonksiyonları
 # ------------------------------
-def summarize_text(client, model: str, text: str, label: str) -> str:
-    prompt = f"Metni 10-12 maddeyle kısa, öz ve bilgi kaybı olmadan özetle. Başlık: {label}.\n\nMetin:\n{text[:12000]}"
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": "Kısa ve bilgi kaybı olmadan özetleyen bir yardımcı yazarsın."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-    )
-    return resp.choices[0].message.content.strip()
 
 def generate_analysis(client, model: str, system_prompt: str, user_prompt: str, temperature: float = 0.3) -> str:
     resp = client.chat.completions.create(
@@ -195,11 +184,12 @@ if st.button("🧠 Analizi Üret", type="primary"):
             ty_summary = summarize_text(client, model, tech_text, "Teknik & Yöntemler Özeti") if tech_text else ""
 
             user_prompt = USER_TEMPLATE.format(
-                education_summary=edu_summary,
-                techniques_summary=ty_summary,
+                education_full=edu_text,
+                techniques_full=tech_text,
                 questions_json=json.dumps(questions, ensure_ascii=False),
                 answers_json=json.dumps(answers, ensure_ascii=False),
             )
+
 
             analysis_text = generate_analysis(client, model, SYSTEM_PROMPT, user_prompt, temperature)
             st.session_state["analysis_text"] = analysis_text
