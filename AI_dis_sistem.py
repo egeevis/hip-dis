@@ -74,12 +74,9 @@ def read_file(file) -> str:
     except Exception:
         return ""
 
-<<<<<<< HEAD
 # ------------------------------
 # JSON Schema (Simplified)
 # ------------------------------
-=======
->>>>>>> 98936d5984c4f4230bd82dbe52e173e752fb9df0
 ANALYSIS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -98,13 +95,9 @@ ANALYSIS_SCHEMA = {
     "required": ["meta", "ga_style_narrative"],
 }
 
-<<<<<<< HEAD
 # ------------------------------
 # Prompts
 # ------------------------------
-=======
-
->>>>>>> 98936d5984c4f4230bd82dbe52e173e752fb9df0
 SYSTEM_PROMPT = """
 Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş bir "Kullanıcı Yanıtları Analiz Uzmanı"sın.
 
