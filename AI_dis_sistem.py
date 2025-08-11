@@ -1,27 +1,7 @@
 import os
 import io
 import json
-import random
 import streamlit as st
-
-try:
-    from docx import Document
-except ImportError:
-    Document = None
-
-try:
-    import PyPDF2
-except ImportError:
-    PyPDF2 = None
-
-try:
-    from openai import OpenAI
-except ImportError:
-    OpenAI = None
-
-st.set_page_config(page_title="Hiperaktivist – Eğitim Dosyası Okuma Testi", page_icon="🧩", layout="wide")
-st.title("📂 Eğitim & Teknik Dosyası Okuma Testi")
-st.caption("Bu araç, yüklediğin dosyaların GPT’ye gerçekten iletilip iletilmediğini test eder.")
 
 # ------------------------------
 # API Key Ayarı
@@ -33,10 +13,30 @@ openai_key = st.sidebar.text_input(
     key="openai_api_key_input"
 )
 
+try:
+    from docx import Document
+except Exception:
+    Document = None
+
+try:
+    import PyPDF2
+except Exception:
+    PyPDF2 = None
+
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+
+st.set_page_config(page_title="Hiperaktivist – Kullanıcı Analiz Sistemi", page_icon="🧩", layout="wide")
+st.title("Hiperaktivist • Dış Sistem: Kullanıcı Analiz Motoru")
+st.caption("20 soruya verilen yanıtları, Eğitim içeriği + Teknik & Yöntemler'e sadık kalarak analiz eder.")
+
 # ------------------------------
 # Yardımcı Fonksiyonlar
 # ------------------------------
 def read_file(file) -> str:
+    """Dosya formatına göre oku"""
     name = file.name.lower()
     if name.endswith(".txt") or name.endswith(".md"):
         return file.read().decode("utf-8", errors="ignore")
@@ -57,17 +57,40 @@ def read_file(file) -> str:
     except Exception:
         return ""
 
-def get_random_snippet(text, length=10):
-    """Metinden rastgele bir snippet alır."""
-    words = text.split()
-    if len(words) <= length:
-        return " ".join(words)
-    start = random.randint(0, len(words) - length)
-    return " ".join(words[start:start + length])
+SYSTEM_PROMPT = """
+Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş bir "Kullanıcı Yanıtları Analiz Uzmanı"sın.
+
+Görevin:
+- Kullanıcının verdiği cevapları analiz ederken sadece yukarıda verilen "Eğitim Dosyası" ve "Teknik & Yöntemler" içeriğini bilgi kaynağı olarak kullan.
+- Eğitim dosyasındaki bilgilerden beslenerek yorum yap.
+- Analizi oluştururken, Teknik & Yöntemler dosyasındaki yaklaşımları temel al.
+- Eğitim veya teknik/yöntemler dosyasında geçmeyen kavramlar, yöntemler veya çıkarımlar ekleme.
+- Çıktı tek bir akıcı metin olacak; başlık, madde listesi veya numaralandırma olmayacak.
+- Anlatım empatik, yargısız, profesyonel ve kullanıcıya özel olacak.
+""".strip()
+
+USER_TEMPLATE = """
+# EĞİTİM DOSYASI
+{education_full}
+
+# TEKNİK & YÖNTEMLER
+{techniques_full}
+
+# SORULAR
+{questions_json}
+
+# KULLANICI YANITLARI
+{answers_json}
+""".strip()
 
 # ------------------------------
-# OpenAI Client
+# Sidebar Ayarları
 # ------------------------------
+st.sidebar.header("Ayarlar")
+model = st.sidebar.text_input("Model", value="gpt-4o-mini")
+language = st.sidebar.selectbox("Dil", ["Türkçe", "English"], index=0)
+temperature = st.sidebar.slider("Temperature", 0.0, 1.0, 0.3, 0.05)
+
 client = None
 if openai_key and OpenAI:
     try:
@@ -76,68 +99,94 @@ if openai_key and OpenAI:
         st.sidebar.error(f"OpenAI istemcisi başlatılamadı: {e}")
 
 # ------------------------------
-# Dosya Yükleme
+# Dosya Yüklemeler
 # ------------------------------
-edu_file = st.file_uploader("📘 Eğitim Dosyası", type=["docx", "pdf", "txt", "md"], key="edu")
-ty_file = st.file_uploader("🛠 Teknik & Yöntemler Dosyası", type=["docx", "pdf", "txt", "md"], key="ty")
+left, right = st.columns(2)
+with left:
+    q_file = st.file_uploader("Soru Seti (JSON)", type=["json"], key="qjson")
+with right:
+    a_file = st.file_uploader("Kullanıcı Yanıtları (JSON)", type=["json"], key="ajson")
 
+edu_file = st.file_uploader("Eğitim Dosyası", type=["docx", "pdf", "txt", "md"], key="edu")
+ty_file = st.file_uploader("Teknik & Yöntemler", type=["docx", "pdf", "txt", "md"], key="ty")
+
+questions, answers = [], []
+if q_file:
+    try:
+        raw = json.loads(q_file.read().decode("utf-8"))
+        questions = raw.get("questions", [])
+    except Exception as e:
+        st.error(f"Soru JSON okunamadı: {e}")
+
+if a_file:
+    try:
+        answers = json.loads(a_file.read().decode("utf-8"))
+    except Exception as e:
+        st.error(f"Cevaplar JSON okunamadı: {e}")
+
+# Elle giriş
+if not a_file and questions:
+    st.markdown("---")
+    st.subheader("📝 Kullanıcı Yanıtları (manuel)")
+    for i, q in enumerate(questions, start=1):
+        qid = q.get("id", str(i))
+        label = q.get("question", f"Soru {i}")
+        ans = st.text_area(label, key=f"ans_{qid}", height=120)
+        answers.append({"id": qid, "answer": ans})
+
+# ------------------------------
+# Eğitim ve Teknik metinleri oku
+# ------------------------------
 edu_text, tech_text = "", ""
 if edu_file:
     edu_text = read_file(edu_file)
 if ty_file:
     tech_text = read_file(ty_file)
 
-# Önizleme
+# DEBUG: Yüklenen dosyaların ilk 500 karakterini göster
 if edu_text:
-    st.subheader("📘 Eğitim Dosyası İçeriği (ilk 500 karakter)")
-    st.code(edu_text[:500])
+    st.info(f"📘 Eğitim Dosyası (ilk 500 karakter):\n{edu_text[:500]}")
 if tech_text:
-    st.subheader("🛠 Teknik & Yöntemler Dosyası İçeriği (ilk 500 karakter)")
-    st.code(tech_text[:500])
+    st.info(f"🛠 Teknik & Yöntemler Dosyası (ilk 500 karakter):\n{tech_text[:500]}")
 
 # ------------------------------
-# Debug Test
+# LLM Fonksiyonları
 # ------------------------------
-if st.button("🚀 GPT Okuma Testi Yap"):
+def generate_analysis(client, model: str, system_prompt: str, user_prompt: str, temperature: float = 0.3) -> str:
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=temperature,
+    )
+    return resp.choices[0].message.content.strip()
+
+# ------------------------------
+# Analiz Üret
+# ------------------------------
+if st.button("🧠 Analizi Üret", type="primary"):
     if not client:
-        st.error("API anahtarı girilmedi.")
-    elif not edu_text and not tech_text:
-        st.error("En az bir dosya yüklemelisin.")
+        st.error("OpenAI API anahtarı gerekli")
+    elif not (edu_text and tech_text and any(a.get('answer') for a in answers)):
+        st.error("Eğitim + Teknik & Yöntemler dosyaları ve en az bir cevap gerekli")
     else:
-        with st.spinner("GPT’ye test sorusu gönderiliyor..."):
-            # Eğitim dosyasından rastgele bir snippet seçelim
-            combined_text = (edu_text + "\n" + tech_text).strip()
-            snippet = get_random_snippet(combined_text, length=8)
+        with st.spinner("Analiz hazırlanıyor…"):
+            user_prompt = USER_TEMPLATE.format(
+                education_full=edu_text,
+                techniques_full=tech_text,
+                questions_json=json.dumps(questions, ensure_ascii=False),
+                answers_json=json.dumps(answers, ensure_ascii=False),
+            )
+            analysis_text = generate_analysis(client, model, SYSTEM_PROMPT, user_prompt, temperature)
+            st.session_state["analysis_text"] = analysis_text
 
-            system_prompt = f"""
-Sen bir test asistanısın. Sana verilen metinleri dikkatle oku.
-Az sonra sana metinlerden alınmış küçük bir parça göstereceğim.
-Görevin: Bu parçanın gerçekten sana verilen metinlerde geçip geçmediğini söylemek.
-""".strip()
-
-            user_prompt = f"""
-# METİNLER
-{combined_text}
-
-# TEST PARÇASI
-"{snippet}"
-
-Bu parça yukarıdaki metinlerde geçiyor mu? Evet ya da hayır olarak cevap ver ve hangi bağlamda geçtiğini açıkla.
-"""
-
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.0,
-                )
-                answer = resp.choices[0].message.content.strip()
-                st.success("✅ GPT’den Yanıt Alındı")
-                st.write("**Seçilen snippet:**", snippet)
-                st.markdown("---")
-                st.write(answer)
-            except Exception as e:
-                st.error(f"OpenAI hatası: {e}")
+# ------------------------------
+# Çıktı
+# ------------------------------
+if st.session_state.get("analysis_text"):
+    st.markdown("---")
+    st.subheader("📎 Analiz Sonucu")
+    st.text_area("Analiz Metni", value=st.session_state["analysis_text"], height=500)
+    st.download_button("📥 analysis.txt", data=st.session_state["analysis_text"], file_name="analysis.txt", mime="text/plain")
