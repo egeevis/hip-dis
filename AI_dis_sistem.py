@@ -31,14 +31,14 @@ except Exception:
 
 st.set_page_config(page_title="Hiperaktivist – Kullanıcı Analiz Sistemi", page_icon="🧩", layout="wide")
 st.title("Hiperaktivist • Dış Sistem: Kullanıcı Analiz Motoru")
-st.caption("20 soruya verilen yanıtları, Eğitim Dosyası + Teknik & Yöntemler'e sadık kalarak analiz eder.")
+st.caption("20 soruya verilen yanıtları, Eğitim içeriği + Teknik & Yöntemler'e %100 sadık kalarak analiz eder.")
 
 # ------------------------------
 # Yardımcı Fonksiyonlar
 # ------------------------------
 def read_file(file) -> str:
     name = file.name.lower()
-    if name.endswith((".txt", ".md")):
+    if name.endswith(".txt") or name.endswith(".md"):
         return file.read().decode("utf-8", errors="ignore")
     if name.endswith(".docx"):
         if not Document:
@@ -61,19 +61,20 @@ SYSTEM_PROMPT = """
 Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş bir "Kullanıcı Yanıtları Analiz Uzmanı"sın.
 
 Görevin:
-- Kullanıcının verdiği cevapları analiz ederken sadece yukarıda verilen "Eğitim Dosyası" ve "Teknik & Yöntemler" içeriğini bilgi kaynağı olarak kullan.
-- Eğitim dosyasındaki bilgilerden beslenerek yorum yap.
-- Analizi oluştururken, Teknik & Yöntemler dosyasındaki yaklaşımları temel al.
-- Eğitim veya Teknik & Yöntemler dosyasında geçmeyen kavramlar, yöntemler veya çıkarımlar ekleme.
+- Analizini yalnızca yukarıda verilen "Eğitim Dosyası" ve "Teknik & Yöntemler" içeriğini bilgi kaynağı olarak kullanarak yap.
+- Eğitim dosyasındaki kavram, tanım ve örneklerden doğrudan beslen.
+- Teknik & Yöntemler dosyasındaki yaklaşımları temel alarak analiz oluştur.
+- Bu iki dosyada yer almayan kavramlar, yöntemler, çıkarımlar veya yorumlar ekleme.
 - Çıktı tek bir akıcı metin olacak; başlık, madde listesi veya numaralandırma olmayacak.
 - Anlatım empatik, yargısız, profesyonel ve kullanıcıya özel olacak.
+- Eğitimi okuduğunu gösterecek, ona özgü terminoloji ve yöntemleri kullan.
 """.strip()
 
 USER_TEMPLATE = """
-# EĞİTİM DOSYASI
+# EĞİTİM DOSYASI (Tam Metin)
 {education_full}
 
-# TEKNİK & YÖNTEMLER
+# TEKNİK & YÖNTEMLER (Tam Metin)
 {techniques_full}
 
 # SORULAR
@@ -90,6 +91,7 @@ st.sidebar.header("Ayarlar")
 model = st.sidebar.text_input("Model", value="gpt-4o-mini")
 language = st.sidebar.selectbox("Dil", ["Türkçe", "English"], index=0)
 temperature = st.sidebar.slider("Temperature", 0.0, 1.0, 0.3, 0.05)
+TEST_MODE = st.sidebar.checkbox("Test Modu (sadece cevaplar.json ile çalış)", value=False)
 
 client = None
 if openai_key and OpenAI:
@@ -145,7 +147,7 @@ if ty_file:
     tech_text = read_file(ty_file)
 
 # ------------------------------
-# LLM Fonksiyonu
+# LLM Fonksiyonları
 # ------------------------------
 def generate_analysis(client, model: str, system_prompt: str, user_prompt: str, temperature: float = 0.3) -> str:
     resp = client.chat.completions.create(
@@ -162,10 +164,9 @@ def generate_analysis(client, model: str, system_prompt: str, user_prompt: str, 
 # Analiz Üret
 # ------------------------------
 if st.button("🧠 Analizi Üret", type="primary"):
-    TEST_MODE = True  # Test modu açık/kapalı
-
     if not client:
         st.error("OpenAI API anahtarı gerekli")
+
     elif not (
         any(a.get('answer') for a in answers) and
         (TEST_MODE or (edu_text and tech_text and questions))
@@ -174,6 +175,7 @@ if st.button("🧠 Analizi Üret", type="primary"):
             st.warning("⚠ Test modu aktif: Sadece cevaplar.json yüklendi.")
         else:
             st.error("Tüm gerekli dosyalar yüklenmeli ve en az bir cevap girilmeli.")
+
     else:
         with st.spinner("Analiz hazırlanıyor…"):
             user_prompt = USER_TEMPLATE.format(
