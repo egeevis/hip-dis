@@ -58,29 +58,37 @@ def read_file(file) -> str:
         return ""
 
 SYSTEM_PROMPT = """
-Sen, Hiperaktivist markasının sunduğu kişisel gelişim eğitimleri için özel olarak geliştirilmiş bir "Kullanıcı Yanıtları Analiz Uzmanı"sın.
+Sen, verilen EĞİTİM DOSYASI ve TEKNİK & YÖNTEMLER metinlerine tamamen bağlı kalarak analiz yapan bir uzman değerlendiricisin.
 
-Görevin:
-- Kullanıcının verdiği cevapları analiz ederken sadece yukarıda verilen "Eğitim Dosyası" ve "Teknik & Yöntemler" içeriğini bilgi kaynağı olarak kullan.
-- Eğitim dosyasındaki bilgilerden beslenerek yorum yap.
-- Analizi oluştururken, Teknik & Yöntemler dosyasındaki yaklaşımları temel al.
-- Eğitim veya teknik/yöntemler dosyasında geçmeyen kavramlar, yöntemler veya çıkarımlar ekleme.
-- Çıktı tek bir akıcı metin olacak; başlık, madde listesi veya numaralandırma olmayacak.
-- Anlatım empatik, yargısız, profesyonel ve kullanıcıya özel olacak.
+KURALLAR:
+1. Yalnızca eğitim dosyası ve teknik & yöntemler metninde geçen bilgileri kullan.
+2. Dosyada geçmeyen konular hakkında yorum yapma; bu durumda 'Bu konu eğitim içeriğinde yer almıyor.' de.
+3. Kullanıcı yanıtlarını değerlendirirken mutlaka eğitimdeki ve tekniklerdeki bilgileri temel al.
+4. Kendi genel bilgin, ezberin veya eğitim dosyası dışında kalan bilgilerden faydalanma.
+5. Analizi TEK BİR METİN olarak yaz; madde madde veya başlıklarla ayırma.
+
+ÇIKTI:
+- Eğitime ve teknik & yöntemlere tam bağlı, mantıklı ve içerikten alıntılarla desteklenmiş tek parça analiz metni.
 """.strip()
 
 USER_TEMPLATE = """
-# EĞİTİM DOSYASI
-{education_full}
+Aşağıda sana verilen tüm veriler yalnızca bu görev için kullanılacaktır.
 
-# TEKNİK & YÖNTEMLER
-{techniques_full}
+=== EĞİTİM DOSYASI BAŞLANGICI ===
+{education_text}
+=== EĞİTİM DOSYASI SONU ===
 
-# SORULAR
+=== TEKNİK & YÖNTEMLER BAŞLANGICI ===
+{techniques_text}
+=== TEKNİK & YÖNTEMLER SONU ===
+
+=== SORULAR ===
 {questions_json}
 
-# KULLANICI YANITLARI
+=== KULLANICI CEVAPLARI ===
 {answers_json}
+
+Görevin: Kullanıcı cevaplarını, yalnızca EĞİTİM DOSYASI ve TEKNİK & YÖNTEMLER içeriğine dayanarak analiz et.
 """.strip()
 
 # ------------------------------
@@ -174,12 +182,19 @@ if st.button("🧠 Analizi Üret", type="primary"):
     else:
         with st.spinner("Analiz hazırlanıyor…"):
             user_prompt = USER_TEMPLATE.format(
-                education_full=edu_text,
-                techniques_full=tech_text,
-                questions_json=json.dumps(questions, ensure_ascii=False),
-                answers_json=json.dumps(answers, ensure_ascii=False),
+                education_text=edu_text,
+                techniques_text=tech_text,
+                questions_json=json.dumps(questions, ensure_ascii=False, indent=2),
+                answers_json=json.dumps(answers, ensure_ascii=False, indent=2)
             )
-            analysis_text = generate_analysis(client, model, SYSTEM_PROMPT, user_prompt, temperature)
+
+            analysis_text = generate_analysis(
+                client, model,
+                SYSTEM_PROMPT,
+                user_prompt,
+                temperature
+            )
+
             st.session_state["analysis_text"] = analysis_text
 
 # ------------------------------
